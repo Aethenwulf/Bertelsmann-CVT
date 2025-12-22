@@ -8,6 +8,11 @@ const cors = require("cors");
 const path = require("path");
 const session = require("express-session");
 
+// const bcrypt = require("bcrypt");
+
+// Image
+app.use("/uploads", express.static(path.join(__dirname, "public/uploads")));
+
 // Security
 const helmet = require("helmet");
 
@@ -22,7 +27,11 @@ app.use(bodyParser.json());
 app.use(cookieParser());
 
 // Helmet baseline security headers
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // allow images to be used by frontend origin
+  })
+);
 
 // Helmet Content Security Policy (CSP)
 app.use(
@@ -47,7 +56,7 @@ app.use(
 
 // Define allowed frontend origins for CORS
 const allowedOrigins = [
-  "http://localhost:8083", // ✅ your current frontend
+  "http://localhost:8084", // ✅ your current frontend
   "http://localhost:5173", // previous dev frontend
   process.env.FRONTEND_ORIGIN || ORIGIN, // whatever you've configured
 ].filter(Boolean);
@@ -98,9 +107,11 @@ app.get(
       url: "/api-docs.json", // tell Swagger where to fetch JSON
     },
     customJs: swaggerCustomJs,
-    customSiteTitle: "TBS Global | CIA - API Docs",
+    customSiteTitle: "Bertelsmann | CVT - API Docs",
   })
 );
+
+app.use(express.static(path.join(__dirname, "public")));
 
 // API routes
 app.use("/", routes);
@@ -117,3 +128,7 @@ app.listen(PORT, () => {
   console.log(`📄 Swagger docs: http://localhost:${PORT}/api-docs`);
   console.log("✅ CORS allowed origins:", allowedOrigins);
 });
+
+// (async () => {
+//   console.log(await bcrypt.hash("aethel00", 10)); // choose your own password
+// })();

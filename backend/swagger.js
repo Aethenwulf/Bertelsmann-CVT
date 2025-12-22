@@ -43,9 +43,9 @@ const options = {
   definition: {
     openapi: "3.0.0",
     info: {
-      title: "TBS Global | CIA",
+      title: "Bertelsmann | CVT",
       version: "1.0.0",
-      description: "API documentation for the CIA project",
+      description: "API documentation for the CVT project",
     },
     servers: [{ url: API_BASE }],
     tags,

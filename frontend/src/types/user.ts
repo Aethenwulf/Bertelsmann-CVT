@@ -66,18 +66,37 @@ export type IUserProfilePost = {
 export type IUserItem = {
   id: string;
   name: string;
-  city: string;
+
+  // NEW: auth username (optional because your GET /users may not return it yet)
+  username: string;
+
+  // table / list fields
+  email?: string;
+  status?: 'ACTIVE' | 'REMOVE';
+  avatarUrl?: string;
+  isVerified?: boolean;
+
+  // contact / location
+  phoneNumber?: string;
+  /** 2-letter country code for the phone number, e.g. "PH", "DE" */
+  phoneCountry?: string;
+
+  city?: string;
+  state?: string;
+  address?: string;
+  country?: string;
+  zipCode?: string;
+  company?: string;
+
+  // extra profile info
+  firstName?: string;
+  lastName?: string;
+
   role: string;
-  email: string;
-  state: string;
-  status: string;
-  address: string;
-  country: string;
-  zipCode: string;
-  company: string;
-  avatarUrl: string;
-  phoneNumber: string;
-  isVerified: boolean;
+  roleId?: number | null;
+
+  department?: string;
+  departmentId?: number | null;
 };
 
 export type IUserAccountBillingHistory = {

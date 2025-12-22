@@ -21,7 +21,8 @@ import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { DashboardContent } from 'src/layouts/dashboard';
-import { _roles, _userList, USER_STATUS_OPTIONS } from 'src/_mock';
+import { _roles, USER_STATUS_OPTIONS } from 'src/_mock';
+import { getUsers, deleteUser } from 'src/api/users';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -52,7 +53,7 @@ const STATUS_OPTIONS = [{ value: 'all', label: 'All' }, ...USER_STATUS_OPTIONS];
 const TABLE_HEAD: TableHeadCellProps[] = [
   { id: 'name', label: 'Name' },
   { id: 'phoneNumber', label: 'Phone number', width: 180 },
-  { id: 'company', label: 'Company', width: 220 },
+  { id: 'department', label: 'Department', width: 220 },
   { id: 'role', label: 'Role', width: 180 },
   { id: 'status', label: 'Status', width: 100 },
   { id: '', width: 88 },
@@ -65,7 +66,9 @@ export function UserListView() {
 
   const confirmDialog = useBoolean();
 
-  const [tableData, setTableData] = useState<IUserItem[]>(_userList);
+  const [tableData, setTableData] = useState<IUserItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const filters = useSetState<IUserTableFilters>({ name: '', role: [], status: 'all' });
   const { state: currentFilters, setState: updateFilters } = filters;
@@ -83,27 +86,42 @@ export function UserListView() {
 
   const notFound = (!dataFiltered.length && canReset) || !dataFiltered.length;
 
+  const handleUpdated = useCallback((updated: IUserItem) => {
+    setTableData((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
+  }, []);
+
   const handleDeleteRow = useCallback(
-    (id: string) => {
-      const deleteRow = tableData.filter((row) => row.id !== id);
+    async (id: string) => {
+      try {
+        await deleteUser(id);
 
-      toast.success('Delete success!');
+        const deleteRow = tableData.filter((row) => row.id !== id);
+        setTableData(deleteRow);
+        table.onUpdatePageDeleteRow(dataInPage.length);
 
-      setTableData(deleteRow);
-
-      table.onUpdatePageDeleteRow(dataInPage.length);
+        toast.success('User deleted');
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err.message ?? 'Failed to delete user');
+      }
     },
     [dataInPage.length, table, tableData]
   );
 
-  const handleDeleteRows = useCallback(() => {
-    const deleteRows = tableData.filter((row) => !table.selected.includes(row.id));
+  const handleDeleteRows = useCallback(async () => {
+    try {
+      await Promise.all(table.selected.map((id) => deleteUser(id)));
 
-    toast.success('Delete success!');
+      const deleteRows = tableData.filter((row) => !table.selected.includes(row.id));
+      setTableData(deleteRows);
 
-    setTableData(deleteRows);
+      table.onUpdatePageDeleteRows(dataInPage.length, dataFiltered.length);
 
-    table.onUpdatePageDeleteRows(dataInPage.length, dataFiltered.length);
+      toast.success('Users deleted');
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message ?? 'Failed to delete selected users');
+    }
   }, [dataFiltered.length, dataInPage.length, table, tableData]);
 
   const handleFilterStatus = useCallback(
@@ -138,6 +156,26 @@ export function UserListView() {
       }
     />
   );
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const users = await getUsers(); // already in table format (IUserItem)
+      setTableData(users);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message ?? 'Failed to load users');
+      toast.error('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   return (
     <>
@@ -186,9 +224,8 @@ export function UserListView() {
                       'soft'
                     }
                     color={
-                      (tab.value === 'active' && 'success') ||
-                      (tab.value === 'pending' && 'warning') ||
-                      (tab.value === 'banned' && 'error') ||
+                      (tab.value === 'ACTIVE' && 'success') ||
+                      (tab.value === 'REMOVE' && 'error') ||
                       'default'
                     }
                   >
@@ -267,6 +304,7 @@ export function UserListView() {
                         onSelectRow={() => table.onSelectRow(row.id)}
                         onDeleteRow={() => handleDeleteRow(row.id)}
                         editHref={paths.dashboard.user.edit(row.id)}
+                        onUpdated={handleUpdated}
                       />
                     ))}
 

@@ -38,13 +38,13 @@ router.use(authenticateToken);
  *           example: Administrator role
  *         created_at:
  *           type: string
- *           example: Handles all technology operations
+ *           example: "2025-08-11T10:00:00Z"
  *         updated_at:
  *           type: string
- *           example: Handles all technology operations
+ *           example: "2025-08-11T12:00:00Z"
  *         is_deleted:
- *           type: string
- *           example: Handles all technology operations
+ *           type: boolean
+ *           example: false
  */
 
 /**
@@ -62,11 +62,15 @@ router.use(authenticateToken);
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/roles'
+ *       500:
+ *         description: Server error
  */
+
 router.get("/", async (req, res) => {
   try {
     const data = await prisma.roles.findMany({
       where: { is_deleted: false },
+      orderBy: { id: "asc" },
     });
     res.json(data);
   } catch (error) {
@@ -95,11 +99,14 @@ router.get("/", async (req, res) => {
  *               $ref: '#/components/schemas/roles'
  *       404:
  *         description: Role not found
+ *       500:
+ *         description: Server error
  */
+
 router.get("/:id", async (req, res) => {
   try {
     const data = await prisma.roles.findUnique({
-      where: { role_id: parseInt(req.params.id) },
+      where: { id: parseInt(req.params.id, 10) },
     });
     if (!data) return res.status(404).json({ error: "Not found" });
     res.json(data);
@@ -129,22 +136,26 @@ router.get("/:id", async (req, res) => {
  *                 type: string
  *     responses:
  *       201:
- *         description: Role created
+ *         description: Role created successfully
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/roles'
+ *       400:
+ *         description: Invalid payload
+ *       500:
+ *         description: Server error
  */
-router.post("/", validateCreateRole, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
 
+router.post("/", validateCreateRole, async (req, res) => {
   const { role_name, description } = req.body;
+
   try {
     const newItem = await prisma.roles.create({
-      data: { role_name, description },
+      data: {
+        name: role_name,
+        description: description ?? null,
+      },
     });
     res.status(201).json(newItem);
   } catch (error) {
@@ -177,19 +188,29 @@ router.post("/", validateCreateRole, async (req, res) => {
  *                 type: string
  *     responses:
  *       200:
- *         description: Role updated
+ *         description: Role updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/roles'
+ *       400:
+ *         description: Invalid payload
+ *       404:
+ *         description: Role not found
+ *       500:
+ *         description: Server error
  */
-router.put("/:id", validateUpdateRole, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
 
+router.put("/:id", validateUpdateRole, async (req, res) => {
   const { role_name, description } = req.body;
+
   try {
     const updatedItem = await prisma.roles.update({
-      where: { role_id: parseInt(req.params.id) },
-      data: { role_name, description, updated_at: new Date() },
+      where: { id: parseInt(req.params.id, 10) }, // ✅ id
+      data: {
+        ...(role_name !== undefined ? { name: role_name } : {}),
+        ...(description !== undefined ? { description } : {}),
+      },
     });
     res.json(updatedItem);
   } catch (error) {
@@ -213,32 +234,31 @@ router.put("/:id", validateUpdateRole, async (req, res) => {
  *     responses:
  *       200:
  *         description: Role deletion state toggled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 role:
+ *                   $ref: '#/components/schemas/roles'
  *       404:
  *         description: Role not found
+ *       500:
+ *         description: Server error
  */
+
 router.delete("/:id", validateRoleId, async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-
   try {
-    const roleId = parseInt(req.params.id);
+    const roleId = parseInt(req.params.id, 10);
 
-    const role = await prisma.roles.findUnique({
-      where: { role_id: roleId },
-    });
-
-    if (!role) {
-      return res.status(404).json({ error: "Role not found" });
-    }
+    const role = await prisma.roles.findUnique({ where: { id: roleId } }); // ✅ id
+    if (!role) return res.status(404).json({ error: "Role not found" });
 
     const updatedRole = await prisma.roles.update({
-      where: { role_id: roleId },
-      data: {
-        is_deleted: !role.is_deleted,
-        updated_at: new Date(),
-      },
+      where: { id: roleId }, // ✅ id
+      data: { is_deleted: !role.is_deleted },
     });
 
     res.status(200).json({

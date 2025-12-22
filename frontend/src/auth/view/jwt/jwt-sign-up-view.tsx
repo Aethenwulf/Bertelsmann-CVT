@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useBoolean } from 'minimal-shared/hooks';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'src/components/snackbar';
 
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
@@ -12,13 +13,14 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import LoadingButton from '@mui/lab/LoadingButton';
 import InputAdornment from '@mui/material/InputAdornment';
+import MenuItem from '@mui/material/MenuItem';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
 
 import { Iconify } from 'src/components/iconify';
-import { Form, Field } from 'src/components/hook-form';
+import { Form, Field, schemaHelper } from 'src/components/hook-form';
 
 import { signUp } from '../../context/jwt';
 import { useAuthContext } from '../../hooks';
@@ -26,39 +28,53 @@ import { getErrorMessage } from '../../utils';
 import { FormHead } from '../../components/form-head';
 import { SignUpTerms } from '../../components/sign-up-terms';
 
+import { isValidPhoneNumber } from 'react-phone-number-input/input';
+import { countries, DEFAULT_COUNTRY_CODE, type CountryCode } from 'src/assets/data/countries';
+
 // ----------------------------------------------------------------------
 
-export type SignUpSchemaType = zod.infer<typeof SignUpSchema>;
+const CountryCodeSchema = zod.custom<CountryCode>(
+  (val) => {
+    if (typeof val !== 'string') return false;
+    return countries.some((c) => c.code === val);
+  },
+  { message: 'Invalid phone country code' }
+);
 
 export const SignUpSchema = zod.object({
-  firstName: zod.string().min(1, { message: 'First name is required!' }),
-  lastName: zod.string().min(1, { message: 'Last name is required!' }),
-  email: zod
-    .string()
-    .min(1, { message: 'Email is required!' })
-    .email({ message: 'Email must be a valid email address!' }),
-  password: zod
-    .string()
-    .min(1, { message: 'Password is required!' })
-    .min(6, { message: 'Password must be at least 6 characters!' }),
+  customerName: zod.string().min(1, { message: 'Customer name is required!' }),
+  email: zod.string().min(1, { message: 'Email is required!' }).email(),
+
+  phoneNumber: schemaHelper.phoneNumber({ isValid: isValidPhoneNumber }),
+  phoneCountry: CountryCodeSchema.optional(),
+
+  dba: zod.string().optional(),
+
+  address: zod.string().min(1, { message: 'Address is required!' }),
+  state: zod.string().min(1, { message: 'State is required!' }),
+  city: zod.string().min(1, { message: 'City is required!' }),
+  postalCode: zod.string().min(1, { message: 'Postal code is required!' }),
 });
+
+export type SignUpSchemaType = zod.infer<typeof SignUpSchema>;
 
 // ----------------------------------------------------------------------
 
 export function JwtSignUpView() {
   const router = useRouter();
 
-  const showPassword = useBoolean();
-
-  const { checkUserSession } = useAuthContext();
-
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const defaultValues: SignUpSchemaType = {
-    firstName: 'Hello',
-    lastName: 'Friend',
-    email: 'hello@gmail.com',
-    password: '@2Minimal',
+    customerName: '',
+    email: '',
+    phoneNumber: '', // ✅ must be '' (not null/undefined)
+    phoneCountry: DEFAULT_COUNTRY_CODE,
+    dba: '',
+    address: '',
+    state: '',
+    city: '',
+    postalCode: '',
   };
 
   const methods = useForm<SignUpSchemaType>({
@@ -68,64 +84,138 @@ export function JwtSignUpView() {
 
   const {
     handleSubmit,
+    watch,
     formState: { isSubmitting },
   } = methods;
 
+  const values = watch();
+
   const onSubmit = handleSubmit(async (data) => {
     try {
-      await signUp({
-        email: data.email,
-        password: data.password,
-        firstName: data.firstName,
-        lastName: data.lastName,
-      });
-      await checkUserSession?.();
+      setErrorMessage(null);
 
-      router.refresh();
+      const res = await fetch(`${process.env.NEXT_PUBLIC_SERVER_URL}/auth/customer-sign-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json?.message || 'Failed to send request');
+      }
+
+      // clear form
+      methods.reset(defaultValues);
+
+      // show success toast
+      toast.success('Request submitted! wait for admin approval.');
+
+      router.push(`${paths.auth.jwt.signIn}?submitted=1`);
+
+      // go back to sign-in page
+      router.refresh(); // optional (safe to keep)
     } catch (error) {
       console.error(error);
-      const feedbackMessage = getErrorMessage(error);
-      setErrorMessage(feedbackMessage);
+      setErrorMessage(getErrorMessage(error));
     }
   });
 
   const renderForm = () => (
     <Box sx={{ gap: 3, display: 'flex', flexDirection: 'column' }}>
-      <Box
-        sx={{ display: 'flex', gap: { xs: 3, sm: 2 }, flexDirection: { xs: 'column', sm: 'row' } }}
-      >
+      {/* Row 1 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         <Field.Text
-          name="firstName"
-          label="First name"
+          name="customerName"
+          label="Customer Name:"
           slotProps={{ inputLabel: { shrink: true } }}
         />
+        <Field.Text name="email" label="Email:" slotProps={{ inputLabel: { shrink: true } }} />
+      </Box>
+
+      {/* Row 2 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        <Field.Phone
+          name="phoneNumber"
+          label="Phone Number:"
+          country={(values.phoneCountry ?? DEFAULT_COUNTRY_CODE) as any}
+        />
+        <Field.Text name="dba" label="DBA:" slotProps={{ inputLabel: { shrink: true } }} />
+      </Box>
+
+      {/* Row 3 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        <Field.Text name="address" label="Address:" slotProps={{ inputLabel: { shrink: true } }} />
+        <Field.Select name="state" label="State:" slotProps={{ inputLabel: { shrink: true } }}>
+          {[
+            'Alabama',
+            'Alaska',
+            'Arizona',
+            'Arkansas',
+            'California',
+            'Colorado',
+            'Connecticut',
+            'Delaware',
+            'Florida',
+            'Georgia',
+            'Hawaii',
+            'Idaho',
+            'Illinois',
+            'Indiana',
+            'Iowa',
+            'Kansas',
+            'Kentucky',
+            'Louisiana',
+            'Maine',
+            'Maryland',
+            'Massachusetts',
+            'Michigan',
+            'Minnesota',
+            'Mississippi',
+            'Missouri',
+            'Montana',
+            'Nebraska',
+            'Nevada',
+            'New Hampshire',
+            'New Jersey',
+            'New Mexico',
+            'New York',
+            'North Carolina',
+            'North Dakota',
+            'Ohio',
+            'Oklahoma',
+            'Oregon',
+            'Pennsylvania',
+            'Rhode Island',
+            'South Carolina',
+            'South Dakota',
+            'Tennessee',
+            'Texas',
+            'Utah',
+            'Vermont',
+            'Virginia',
+            'Washington',
+            'West Virginia',
+            'Wisconsin',
+            'Wyoming',
+          ].map((s) => (
+            <MenuItem key={s} value={s}>
+              {s}
+            </MenuItem>
+          ))}
+        </Field.Select>
+      </Box>
+
+      {/* Row 4 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+        <Field.Text name="city" label="City:" slotProps={{ inputLabel: { shrink: true } }} />
         <Field.Text
-          name="lastName"
-          label="Last name"
+          name="postalCode"
+          label="Postal Code:"
           slotProps={{ inputLabel: { shrink: true } }}
         />
       </Box>
-
-      <Field.Text name="email" label="Email address" slotProps={{ inputLabel: { shrink: true } }} />
-
-      <Field.Text
-        name="password"
-        label="Password"
-        placeholder="6+ characters"
-        type={showPassword.value ? 'text' : 'password'}
-        slotProps={{
-          inputLabel: { shrink: true },
-          input: {
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton onClick={showPassword.onToggle} edge="end">
-                  <Iconify icon={showPassword.value ? 'solar:eye-bold' : 'solar:eye-closed-bold'} />
-                </IconButton>
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
 
       <LoadingButton
         fullWidth
@@ -134,9 +224,9 @@ export function JwtSignUpView() {
         type="submit"
         variant="contained"
         loading={isSubmitting}
-        loadingIndicator="Create account..."
+        loadingIndicator="Submitting..."
       >
-        Create account
+        Send Request
       </LoadingButton>
     </Box>
   );
@@ -144,12 +234,12 @@ export function JwtSignUpView() {
   return (
     <>
       <FormHead
-        title="Get started absolutely free"
+        title="Get started!"
         description={
           <>
             {`Already have an account? `}
             <Link component={RouterLink} href={paths.auth.jwt.signIn} variant="subtitle2">
-              Get started
+              Get started!
             </Link>
           </>
         }

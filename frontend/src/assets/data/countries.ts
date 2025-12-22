@@ -248,3 +248,7 @@ export const countries = [
   { code: 'ZM', label: 'Zambia', phone: '260' },
   { code: 'ZW', label: 'Zimbabwe', phone: '263' },
 ];
+
+export type CountryCode = (typeof countries)[number]['code'];
+
+export const DEFAULT_COUNTRY_CODE: CountryCode = 'PH';

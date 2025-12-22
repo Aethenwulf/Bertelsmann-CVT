@@ -32,9 +32,17 @@ type Props = {
   editHref: string;
   onSelectRow: () => void;
   onDeleteRow: () => void;
+  onUpdated?: (updated: IUserItem) => void;
 };
 
-export function UserTableRow({ row, selected, editHref, onSelectRow, onDeleteRow }: Props) {
+export function UserTableRow({
+  row,
+  selected,
+  editHref,
+  onSelectRow,
+  onDeleteRow,
+  onUpdated,
+}: Props) {
   const menuActions = usePopover();
   const confirmDialog = useBoolean();
   const quickEditForm = useBoolean();
@@ -44,6 +52,7 @@ export function UserTableRow({ row, selected, editHref, onSelectRow, onDeleteRow
       currentUser={row}
       open={quickEditForm.value}
       onClose={quickEditForm.onFalse}
+      onUpdated={onUpdated}
     />
   );
 
@@ -125,18 +134,15 @@ export function UserTableRow({ row, selected, editHref, onSelectRow, onDeleteRow
         </TableCell>
 
         <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.phoneNumber}</TableCell>
-
-        <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.company}</TableCell>
-
+        <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.department}</TableCell>
         <TableCell sx={{ whiteSpace: 'nowrap' }}>{row.role}</TableCell>
 
         <TableCell>
           <Label
             variant="soft"
             color={
-              (row.status === 'active' && 'success') ||
-              (row.status === 'pending' && 'warning') ||
-              (row.status === 'banned' && 'error') ||
+              (row.status === 'ACTIVE' && 'success') ||
+              (row.status === 'REMOVE' && 'error') ||
               'default'
             }
           >

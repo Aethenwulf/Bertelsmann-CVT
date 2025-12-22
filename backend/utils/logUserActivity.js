@@ -34,17 +34,27 @@ async function logUserActivity(
       action_type,
       table_name,
       record_id,
-      changed_fields:
-        changed_fields == null
-          ? null
-          : typeof changed_fields === "string"
-          ? changed_fields
-          : JSON.stringify(changed_fields),
       machine_id: `${machineId} · ${browserName} ${browserVersion}`,
       device_type: deviceType,
       ip_address: ipAddress,
-      created_at: new Date(), // <- PRISMA MODEL USES created_at, NOT timestamp
+      created_at: new Date(),
     };
+
+    if (changed_fields != null) {
+      if (Array.isArray(changed_fields)) {
+        dataBase.changed_fields = changed_fields;
+      } else if (typeof changed_fields === "string") {
+        try {
+          // allow JSON string input safely
+          const parsed = JSON.parse(changed_fields);
+          dataBase.changed_fields = Array.isArray(parsed)
+            ? parsed
+            : [changed_fields];
+        } catch {
+          dataBase.changed_fields = [changed_fields];
+        }
+      }
+    }
 
     // First try with scalar FK user_id (most common in your previous code)
     try {

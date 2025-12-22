@@ -1,6 +1,7 @@
 import type { IUserItem } from 'src/types/user';
 
 import { z as zod } from 'zod';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { isValidPhoneNumber } from 'react-phone-number-input/input';
@@ -15,14 +16,16 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 
-import { USER_STATUS_OPTIONS } from 'src/_mock';
-
+import { getRoles, type RoleItem } from 'src/api/roles';
+import { getDepartments, type DepartmentFromApiRaw } from 'src/api/departments';
 import { toast } from 'src/components/snackbar';
 import { Form, Field, schemaHelper } from 'src/components/hook-form';
+import { updateUser } from 'src/api/users';
 
 // ----------------------------------------------------------------------
 
-export type UserQuickEditSchemaType = zod.infer<typeof UserQuickEditSchema>;
+const DEFAULT_PHONE_COUNTRY = 'PH';
+const STATUS = ['ACTIVE', 'REMOVE'] as const;
 
 export const UserQuickEditSchema = zod.object({
   name: zod.string().min(1, { message: 'Name is required!' }),
@@ -30,20 +33,27 @@ export const UserQuickEditSchema = zod.object({
     .string()
     .min(1, { message: 'Email is required!' })
     .email({ message: 'Email must be a valid email address!' }),
+  username: zod
+    .string()
+    .min(3, { message: 'Username is required!' })
+    .max(100)
+    .regex(/^[a-zA-Z0-9._-]+$/, { message: 'Only letters, numbers, dot, underscore, dash' }),
   phoneNumber: schemaHelper.phoneNumber({ isValid: isValidPhoneNumber }),
+  phoneCountry: zod.string().optional(),
+
   country: schemaHelper.nullableInput(zod.string().min(1, { message: 'Country is required!' }), {
-    // message for null value
     message: 'Country is required!',
   }),
   state: zod.string().min(1, { message: 'State is required!' }),
   city: zod.string().min(1, { message: 'City is required!' }),
   address: zod.string().min(1, { message: 'Address is required!' }),
   zipCode: zod.string().min(1, { message: 'Zip code is required!' }),
-  company: zod.string().min(1, { message: 'Company is required!' }),
+  department: zod.string().min(1, { message: 'Department is required!' }),
   role: zod.string().min(1, { message: 'Role is required!' }),
-  // Not required
-  status: zod.string(),
+  status: zod.enum(STATUS),
 });
+
+export type UserQuickEditSchemaType = zod.infer<typeof UserQuickEditSchema>;
 
 // ----------------------------------------------------------------------
 
@@ -51,56 +61,137 @@ type Props = {
   open: boolean;
   onClose: () => void;
   currentUser?: IUserItem;
+  onUpdated?: (updated: IUserItem) => void;
 };
 
-export function UserQuickEditForm({ currentUser, open, onClose }: Props) {
+export function UserQuickEditForm({ currentUser, open, onClose, onUpdated }: Props) {
+  const [departments, setDepartments] = useState<DepartmentFromApiRaw[]>([]);
+  const [roles, setRoles] = useState<RoleItem[]>([]);
   const defaultValues: UserQuickEditSchemaType = {
     name: '',
+    username: '',
     email: '',
     phoneNumber: '',
+    phoneCountry: 'PH',
     address: '',
     country: '',
     state: '',
     city: '',
     zipCode: '',
-    status: '',
-    company: '',
+    department: '',
     role: '',
+    status: 'ACTIVE',
   };
 
   const methods = useForm<UserQuickEditSchemaType>({
     mode: 'all',
     resolver: zodResolver(UserQuickEditSchema),
     defaultValues,
-    values: currentUser,
   });
 
   const {
     reset,
     handleSubmit,
+    watch,
     formState: { isSubmitting },
   } = methods;
 
+  const values = watch();
+
+  useEffect(() => {
+    if (currentUser) {
+      reset({
+        name: currentUser.name ?? '',
+        email: currentUser.email ?? '',
+        username: currentUser.username ?? '',
+        phoneNumber: currentUser.phoneNumber ?? '',
+        phoneCountry: currentUser.phoneCountry ?? 'PH',
+        address: currentUser.address ?? '',
+        country: (currentUser.country as string | null) ?? '',
+        state: currentUser.state ?? '',
+        city: currentUser.city ?? '',
+        zipCode: currentUser.zipCode ?? '',
+        department: currentUser.department ?? '',
+        role: currentUser.role ?? '',
+        status: (currentUser.status as any) ?? 'ACTIVE',
+      });
+    } else {
+      reset(defaultValues);
+    }
+  }, [currentUser, reset]);
+
   const onSubmit = handleSubmit(async (data) => {
-    const promise = new Promise((resolve) => setTimeout(resolve, 1000));
+    if (!currentUser?.id) {
+      toast.error('Missing user id');
+      return;
+    }
+
+    // split full name -> first/last (simple approach)
+    const parts = (data.name ?? '').trim().split(/\s+/);
+    const firstName = parts[0] ?? '';
+    const lastName = parts.slice(1).join(' ') || '';
+
+    const payload = {
+      firstName,
+      lastName,
+      email: data.email,
+      username: data.username,
+      phoneNumber: data.phoneNumber || null,
+      phoneCountry: data.phoneCountry || null,
+
+      country: data.country || null,
+      state: data.state || null,
+      city: data.city || null,
+      address: data.address || null,
+      zipCode: data.zipCode || null,
+
+      departmentId: data.department ? Number(data.department) : null,
+      roleId: data.role ? Number(data.role) : null,
+
+      status: data.status || null,
+    };
 
     try {
-      reset();
-      onClose();
+      const promise = updateUser(currentUser.id, payload);
 
       toast.promise(promise, {
-        loading: 'Loading...',
+        loading: 'Updating...',
         success: 'Update success!',
         error: 'Update error!',
       });
 
-      await promise;
-
-      console.info('DATA', data);
-    } catch (error) {
+      const updated = await promise;
+      onUpdated?.(updated);
+      onClose();
+    } catch (error: any) {
       console.error(error);
+      toast.error(error?.message ?? 'Failed to update');
     }
   });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getDepartments();
+        setDepartments(data);
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load departments');
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getRoles();
+        setRoles(data);
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load roles');
+      }
+    })();
+  }, []);
 
   return (
     <Dialog
@@ -126,19 +217,15 @@ export function UserQuickEditForm({ currentUser, open, onClose }: Props) {
               gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)' },
             }}
           >
-            <Field.Select name="status" label="Status">
-              {USER_STATUS_OPTIONS.map((status) => (
-                <MenuItem key={status.value} value={status.value}>
-                  {status.label}
-                </MenuItem>
-              ))}
-            </Field.Select>
-
-            <Box sx={{ display: { xs: 'none', sm: 'block' } }} />
-
             <Field.Text name="name" label="Full name" />
             <Field.Text name="email" label="Email address" />
-            <Field.Phone name="phoneNumber" label="Phone number" />
+            <Field.Text name="username" label="Username" />
+
+            <Field.Phone
+              name="phoneNumber"
+              label="Phone number"
+              country={(values.phoneCountry || DEFAULT_PHONE_COUNTRY) as any}
+            />
 
             <Field.CountrySelect
               fullWidth
@@ -151,8 +238,27 @@ export function UserQuickEditForm({ currentUser, open, onClose }: Props) {
             <Field.Text name="city" label="City" />
             <Field.Text name="address" label="Address" />
             <Field.Text name="zipCode" label="Zip/code" />
-            <Field.Text name="company" label="Company" />
-            <Field.Text name="role" label="Role" />
+            <Field.Select name="department" label="Department">
+              {departments.map((d) => (
+                <MenuItem key={d.id} value={String(d.id)}>
+                  {d.name}
+                </MenuItem>
+              ))}
+            </Field.Select>
+            <Field.Select name="role" label="Role">
+              {roles.map((role) => (
+                <MenuItem key={role.id} value={String(role.id)}>
+                  {role.name}
+                </MenuItem>
+              ))}
+            </Field.Select>
+            <Field.Select name="status" label="Status">
+              {STATUS.map((v) => (
+                <MenuItem key={v} value={v}>
+                  {v}
+                </MenuItem>
+              ))}
+            </Field.Select>
           </Box>
         </DialogContent>
 

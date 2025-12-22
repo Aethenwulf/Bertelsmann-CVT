@@ -29,21 +29,22 @@ router.use(authenticateToken);
  *           example: 1
  *         department_name:
  *           type: string
- *           example: IT Department
+ *           example: "IT Department"
  *         description:
  *           type: string
- *           example: Handles all technology operations
+ *           example: "Handles all technology operations"
  *         created_at:
  *           type: string
  *           format: date-time
- *           example: 2025-08-11T10:00:00Z
+ *           example: "2025-08-11T10:00:00Z"
  *         updated_at:
  *           type: string
  *           format: date-time
- *           example: 2025-08-11T12:00:00Z
+ *           example: "2025-08-11T12:00:00Z"
  *         is_deleted:
  *           type: boolean
  *           example: false
+ *
  *     departmentInput:
  *       type: object
  *       required:
@@ -51,10 +52,10 @@ router.use(authenticateToken);
  *       properties:
  *         department_name:
  *           type: string
- *           example: Human Resources
+ *           example: "Human Resources"
  *         description:
  *           type: string
- *           example: Handles hiring and employee relations
+ *           example: "Handles hiring and employee relations"
  */
 
 /**
@@ -76,10 +77,12 @@ router.use(authenticateToken);
  *       500:
  *         description: Server error
  */
+
 router.get("/", async (req, res) => {
   try {
     const data = await prisma.departments.findMany({
       where: { is_deleted: false },
+      orderBy: { id: "asc" },
     });
     res.json(data);
   } catch (error) {
@@ -111,10 +114,11 @@ router.get("/", async (req, res) => {
  *       500:
  *         description: Server error
  */
+
 router.get("/:id", async (req, res) => {
   try {
     const data = await prisma.departments.findUnique({
-      where: { department_id: parseInt(req.params.id) },
+      where: { id: parseInt(req.params.id, 10) }, // ✅ id
     });
     if (!data) return res.status(404).json({ error: "Department not found" });
     res.json(data);
@@ -142,18 +146,19 @@ router.get("/:id", async (req, res) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/departments'
+ *       400:
+ *         description: Invalid payload
  *       500:
  *         description: Server error
  */
+
 router.post("/", validateDepartment, async (req, res) => {
   const { department_name, description } = req.body;
   try {
     const newItem = await prisma.departments.create({
       data: {
-        department_name,
-        description,
-        created_at: new Date(),
-        updated_at: new Date(),
+        name: department_name,
+        description: description ?? null,
       },
     });
     res.status(201).json(newItem);
@@ -196,14 +201,16 @@ router.put("/:id", validateDepartment, async (req, res) => {
   const { department_name, description } = req.body;
   try {
     const updatedItem = await prisma.departments.update({
-      where: { department_id: parseInt(req.params.id) },
-      data: { department_name, description, updated_at: new Date() },
+      where: { id: parseInt(req.params.id, 10) }, // ✅ id
+      data: {
+        name: department_name,
+        description: description ?? null,
+      },
     });
     res.json(updatedItem);
   } catch (error) {
-    if (error.code === "P2025") {
+    if (error.code === "P2025")
       return res.status(404).json({ error: "Department not found" });
-    }
     res.status(500).json({ error: error.message });
   }
 });
@@ -211,9 +218,8 @@ router.put("/:id", validateDepartment, async (req, res) => {
 /**
  * @swagger
  * /departments/{id}:
- *   delete:
- *     summary: Toggle department deletion state
- *     description: Marks a department as deleted or restores it if already deleted.
+ *   put:
+ *     summary: Update a department
  *     tags: [Departments]
  *     parameters:
  *       - in: path
@@ -221,23 +227,27 @@ router.put("/:id", validateDepartment, async (req, res) => {
  *         required: true
  *         schema:
  *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/departmentInput'
  *     responses:
  *       200:
- *         description: Department deletion state toggled
+ *         description: Department updated successfully
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                 department:
- *                   $ref: '#/components/schemas/departments'
+ *               $ref: '#/components/schemas/departments'
+ *       400:
+ *         description: Invalid payload
  *       404:
  *         description: Department not found
  *       500:
  *         description: Server error
  */
+
 router.delete("/:id", async (req, res) => {
   try {
     const departmentId = parseInt(req.params.id);

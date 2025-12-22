@@ -1,17 +1,19 @@
 import type { AxiosRequestConfig } from 'axios';
-
 import axios from 'axios';
-
 import { CONFIG, API_BASE } from 'src/global-config';
 
 // ----------------------------------------------------------------------
 
-// Use CONFIG.serverUrl if provided, otherwise fallback to API_BASE
 const axiosInstance = axios.create({ baseURL: CONFIG.serverUrl || API_BASE });
+
+axiosInstance.interceptors.request.use((config) => {
+  console.log('[HTTP]', config.method?.toUpperCase(), config.baseURL, config.url);
+  return config;
+});
 
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject((error.response && error.response.data) || 'Something went wrong!')
+  (error) => Promise.reject(error)
 );
 
 export default axiosInstance;
@@ -19,16 +21,9 @@ export default axiosInstance;
 // ----------------------------------------------------------------------
 
 export const fetcher = async (args: string | [string, AxiosRequestConfig]) => {
-  try {
-    const [url, config] = Array.isArray(args) ? args : [args];
-
-    const res = await axiosInstance.get(url, { ...config });
-
-    return res.data;
-  } catch (error) {
-    console.error('Failed to fetch:', error);
-    throw error;
-  }
+  const [url, config] = Array.isArray(args) ? args : [args];
+  const res = await axiosInstance.get(url, { ...config });
+  return res.data;
 };
 
 // ----------------------------------------------------------------------
@@ -39,23 +34,11 @@ export const endpoints = {
   calendar: '/api/calendar',
   auth: {
     me: '/auth/me',
-    signIn: '/auth/login',
-    signUp: '/api/auth/sign-up',
+    signIn: '/auth/sign-in',
+    signUp: '/auth/sign-up',
   },
-  mail: {
-    list: '/api/mail/list',
-    details: '/api/mail/details',
-    labels: '/api/mail/labels',
-  },
-  post: {
-    list: '/api/post/list',
-    details: '/api/post/details',
-    latest: '/api/post/latest',
-    search: '/api/post/search',
-  },
-  product: {
-    list: '/api/product/list',
-    details: '/api/product/details',
-    search: '/api/product/search',
-  },
+  users: { list: '/users', root: '/users' },
+  customers: { list: '/customers', root: '/customers' },
+  departments: { list: '/departments', root: '/departments' },
+  roles: { list: '/roles', root: '/roles' },
 };

@@ -109,30 +109,6 @@ async function logActivity(
  *   get:
  *     summary: Get all activity logs with optional filters
  *     tags: [Activity Logs]
- *     parameters:
- *       - in: query
- *         name: table_name
- *         schema:
- *           type: string
- *       - in: query
- *         name: user_id
- *         schema:
- *           type: integer
- *       - in: query
- *         name: action_type
- *         schema:
- *           type: string
- *           enum: [CREATE, UPDATE, DELETE, LOGIN, LOGOUT]
- *       - in: query
- *         name: start_date
- *         schema:
- *           type: string
- *           format: date
- *       - in: query
- *         name: end_date
- *         schema:
- *           type: string
- *           format: date
  *     responses:
  *       200:
  *         description: List of activity logs

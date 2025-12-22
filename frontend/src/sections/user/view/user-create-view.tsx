@@ -1,6 +1,10 @@
 'use client';
 
+import Button from '@mui/material/Button';
+import { Iconify } from 'src/components/iconify';
+
 import { paths } from 'src/routes/paths';
+import { RouterLink } from 'src/routes/components';
 
 import { DashboardContent } from 'src/layouts/dashboard';
 
@@ -20,6 +24,16 @@ export function UserCreateView() {
           { name: 'User', href: paths.dashboard.user.root },
           { name: 'New user' },
         ]}
+        action={
+          <Button
+            component={RouterLink}
+            href={paths.dashboard.user.list}
+            variant="contained"
+            startIcon={<Iconify icon="mingcute:left-line" />}
+          >
+            Back to list
+          </Button>
+        }
         sx={{ mb: { xs: 3, md: 5 } }}
       />
 

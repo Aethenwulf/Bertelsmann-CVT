@@ -29,7 +29,7 @@ export const signInWithPassword = async ({ email, password }: SignInParams): Pro
 
     const res = await axios.post(endpoints.auth.signIn, params);
 
-    // ✅ Backend currently returns `{ success, token, user }`
+    // Backend currently returns `{ success, token, user }`
     // But the frontend originally expects `accessToken`
     // So we support both shapes: prefer `accessToken`, fallback to `token`
     const { accessToken, token } = res.data;
@@ -86,11 +86,15 @@ export const signUp = async ({
 /** **************************************
  * Sign out
  *************************************** */
-export const signOut = async (): Promise<void> => {
+export const signOut = async (userId?: string | number): Promise<void> => {
   try {
+    if (userId) {
+      sessionStorage.removeItem(`PROFILE_REDIRECT_LOCK_${userId}`);
+    }
     await setSession(null);
   } catch (error) {
     console.error('Error during sign out:', error);
     throw error;
   }
 };
+

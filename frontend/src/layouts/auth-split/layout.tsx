@@ -63,7 +63,7 @@ export function AuthSplitLayout({
       leftArea: (
         <>
           {/** @slot Logo */}
-          <Logo />
+          <Logo isSingle={false} />
         </>
       ),
       rightArea: (

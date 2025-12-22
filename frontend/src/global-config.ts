@@ -20,7 +20,7 @@ export type ConfigValue = {
 // ----------------------------------------------------------------------
 
 export const CONFIG: ConfigValue = {
-  appName: 'TBS Global | CIA',
+  appName: 'Bertelsmann | CVT',
   appVersion: packageJson.version,
   serverUrl: process.env.NEXT_PUBLIC_SERVER_URL ?? '',
   assetsDir: process.env.NEXT_PUBLIC_ASSETS_DIR ?? '',
@@ -41,4 +41,4 @@ export const CONFIG: ConfigValue = {
 export const API_BASE =
   process.env.NODE_ENV === 'development'
     ? 'http://localhost:3000'
-    : 'https://tbs-global-cia-backend.onrender.com';
+    : 'https://bertelsmann-CVT-backend.onrender.com';

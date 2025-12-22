@@ -51,9 +51,9 @@ export const navData: NavSectionProps['data'] = [
   {
     subheader: 'Overview',
     items: [
-      { title: 'One', path: paths.dashboard.root, icon: ICONS.dashboard },
-      { title: 'Two', path: paths.dashboard.two, icon: ICONS.ecommerce },
-      { title: 'Three', path: paths.dashboard.three, icon: ICONS.analytics },
+      { title: 'Dashboard', path: paths.dashboard.root, icon: ICONS.dashboard },
+      // { title: 'Two', path: paths.dashboard.two, icon: ICONS.ecommerce },
+      // { title: 'Three', path: paths.dashboard.three, icon: ICONS.analytics },
     ],
   },
   /**
@@ -71,16 +71,7 @@ export const navData: NavSectionProps['data'] = [
           { title: 'Create', path: paths.dashboard.user.new },
         ],
       },
-      {
-        title: 'Form',
-        path: paths.dashboard.pdf.acknwoledgement,
-        icon: ICONS.pdf,
-        children: [
-          { title: 'Acknwoledgement', path: paths.dashboard.pdf.acknwoledgement },
-          { title: 'Code of Conduct', path: paths.dashboard.pdf.coc },
-          { title: 'Employee Infringement Notice', path: paths.dashboard.pdf.ein },
-        ],
-      },
+      // { title: 'Blank', path: paths.dashboard.blank, icon: ICONS.blank },
     ],
   },
 ];

@@ -27,7 +27,7 @@ export const Logo = forwardRef<HTMLAnchorElement, LogoProps>(
         alt="Single logo"
         src={`${CONFIG.assetsDir}/logo/logo-single.png`}
         width="100%"
-        height="100%"
+        height="95%"
       />
     );
 
@@ -50,8 +50,8 @@ export const Logo = forwardRef<HTMLAnchorElement, LogoProps>(
         className={mergeClasses([logoClasses.root, className])}
         sx={[
           () => ({
-            width: isSingle ? 40 : 102,
-            height: isSingle ? 40 : 36,
+            width: isSingle ? 40 : 202,
+            height: isSingle ? 35 : 36,
             ...(disabled && { pointerEvents: 'none' }),
           }),
           ...(Array.isArray(sx) ? sx : [sx]),
