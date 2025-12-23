@@ -121,7 +121,10 @@ const USER_SAFE_SELECT = {
   last_login: true,
   created_at: true,
   updated_at: true,
+
+  // ✅ already included
   profile_completed: true,
+
   is_deleted: true,
 };
 
@@ -206,55 +209,6 @@ router.delete("/:id/avatar", async (req, res) => {
   }
 });
 
-/**
- * only overwrite when field is present
- * - undefined => keep existing
- * - null      => write null (explicit clear)
- */
-
-/**
- * @swagger
- * tags:
- *   - name: Users
- *     description: User management endpoints
- */
-
-/**
- * @swagger
- * components:
- *   schemas:
- *     users:
- *       type: object
- *       properties:
- *         user_id:
- *           type: integer
- *           example: 1
- *         username:
- *           type: string
- *           example: johndoe
- *         email:
- *           type: string
- *           example: johndoe@example.com
- *         role_id:
- *           type: integer
- *           example: 1
- *         password:
- *           type: string
- *           example: "$2b$10$TgOjpqFbm2EXl6QK7U0iR9gEpZfzL3wPfTfOnPOEqglmtDd9B"
- *         created_at:
- *           type: string
- *           example: "2025-08-11T10:00:00Z"
- *         updated_at:
- *           type: string
- *           example: "2025-08-11T12:00:00Z"
- *         profile_completed:
- *           type: boolean
- *           example: false
- *         is_deleted:
- *           type: boolean
- *           example: false
- */
-
 function coalesceUndefined(next, prev) {
   return next === undefined ? prev : next;
 }
@@ -262,7 +216,7 @@ function coalesceUndefined(next, prev) {
 const {
   validateCreateUser,
   validateUpdateUser,
-} = require("../../validator/users/users");
+} = require("../../validator/users/users"); // keep your existing path
 const validate = require("../../../middleware/validate");
 
 function removePassword(item) {
@@ -274,7 +228,7 @@ function removePassword(item) {
   return rest;
 }
 
-function toIntOrNull(v) {
+function toIntOrNull2(v) {
   if (v === undefined || v === null || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
@@ -286,7 +240,7 @@ function normalizeUsername(v) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "")
-    .replace(/[^a-z0-9._-]/g, ""); // keep it safe-ish for logins
+    .replace(/[^a-z0-9._-]/g, "");
   return s;
 }
 
@@ -294,7 +248,6 @@ async function generateUniqueUsername(tx, baseUsername) {
   const base = normalizeUsername(baseUsername) || "user";
   let candidate = base;
 
-  // If base exists, append incremental suffix: base1, base2, ...
   for (let i = 0; i < 10000; i++) {
     const exists = await tx.user_auth.findUnique({
       where: { username: candidate },
@@ -302,11 +255,9 @@ async function generateUniqueUsername(tx, baseUsername) {
     });
 
     if (!exists) return candidate;
-
     candidate = `${base}${i + 1}`;
   }
 
-  // Extremely unlikely fallback
   return `${base}${Date.now()}`;
 }
 
@@ -329,7 +280,6 @@ async function generateUniqueUsername(tx, baseUsername) {
  *       500:
  *         description: Server error
  */
-
 router.get("/", async (req, res) => {
   try {
     const isAdmin = req.user?.role === 1;
@@ -339,7 +289,7 @@ router.get("/", async (req, res) => {
         ? undefined
         : {
             is_deleted: false,
-            department_id: toIntOrNull(req.user?.department),
+            department_id: toIntOrNull2(req.user?.department),
           },
       select: {
         ...USER_SAFE_SELECT,
@@ -357,6 +307,7 @@ router.get("/", async (req, res) => {
       const { user_auth, ...rest } = u;
       return { ...rest, username };
     });
+
     const safe = normalized.map(normalizeUserBigInts);
     const withAvatar = safe.map((u) => withAbsoluteAvatarUrl(req, u));
     return res.json(removePassword(withAvatar));
@@ -390,7 +341,6 @@ router.get("/", async (req, res) => {
  *       500:
  *         description: Server error
  */
-
 router.get("/:id", async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
@@ -468,7 +418,6 @@ router.get("/:id", async (req, res) => {
  *       500:
  *         description: Server error
  */
-
 router.post("/", validateCreateUser, validate, async (req, res) => {
   const {
     username,
@@ -494,7 +443,6 @@ router.post("/", validateCreateUser, validate, async (req, res) => {
     const password_hash = await bcrypt.hash(password, 10);
 
     const created = await prisma.$transaction(async (tx) => {
-      // ✅ generate unique username inside the same transaction
       const baseUsername = username || String(email).split("@")[0];
       const uniqueUsername = await generateUniqueUsername(tx, baseUsername);
 
@@ -512,8 +460,8 @@ router.post("/", validateCreateUser, validate, async (req, res) => {
           address_line: address_line ?? null,
           zip_code: zip_code ?? null,
 
-          role_id: toIntOrNull(role_id),
-          department_id: toIntOrNull(department_id),
+          role_id: toIntOrNull2(role_id),
+          department_id: toIntOrNull2(department_id),
           status: status ?? "ACTIVE",
         },
         select: USER_SAFE_SELECT,
@@ -522,7 +470,7 @@ router.post("/", validateCreateUser, validate, async (req, res) => {
       await tx.user_auth.create({
         data: {
           user_id: newUser.id,
-          username: uniqueUsername, // ✅ never collides now
+          username: uniqueUsername,
           password_hash,
         },
       });
@@ -539,11 +487,10 @@ router.post("/", validateCreateUser, validate, async (req, res) => {
 
     res.status(201).json(removePassword(created));
   } catch (error) {
-    // Prisma unique errors
     if (error?.code === "P2002") {
       return res.status(409).json({
         error: "Duplicate value for a unique field",
-        target: error?.meta?.target, // ✅ helpful for debugging
+        target: error?.meta?.target,
       });
     }
     res.status(500).json({ error: error.message });
@@ -592,65 +539,121 @@ router.post("/", validateCreateUser, validate, async (req, res) => {
  *       500:
  *         description: Server error
  */
-
 router.put("/:id", validateUpdateUser, validate, async (req, res) => {
-  const {
-    username,
-    email,
-    password,
-    first_name,
-    last_name,
-    phone_number,
-    role_id,
-    department_id,
-    status,
-  } = req.body;
-
   try {
-    const userId = parseInt(req.params.id);
-
-    const oldUser = await prisma.users.findUnique({
-      where: { user_id: userId },
-    });
-    if (!oldUser) return res.status(404).json({ error: "User not found" });
-
-    const updateData = {
-      username,
-      email,
-      first_name,
-      last_name,
-      phone_number,
-      role_id,
-      department_id,
-      status,
-      updated_at: new Date(),
-    };
-
-    if (
-      password &&
-      typeof password === "string" &&
-      password.trim().length > 0
-    ) {
-      updateData.password_hash = await bcrypt.hash(password, 10);
+    const userId = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
     }
 
-    const updatedItem = await prisma.users.update({
-      where: { user_id: userId },
-      data: updateData,
-    });
+    const existing = await prisma.users.findUnique({ where: { id: userId } });
+    if (!existing || existing.is_deleted) {
+      return res.status(404).json({ error: "User not found" });
+    }
 
-    const changedFields = Object.keys(updateData).filter(
-      (key) => updateData[key] !== oldUser[key]
-    );
+    // ✅ FIX: destructure req.body so variables exist
+    const {
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      phoneCountry,
+      country,
+      address,
+      state,
+      city,
+      zipCode,
+      about,
+      birthday,
+      departmentId,
+      roleId,
+      isPublic,
+      status,
+      password,
+      username,
+      profile_completed, // ✅ NEW
+    } = req.body;
+
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      const updated = await tx.users.update({
+        where: { id: userId },
+        data: {
+          first_name: coalesceUndefined(firstName, existing.first_name),
+          last_name: coalesceUndefined(lastName, existing.last_name),
+          email: coalesceUndefined(email, existing.email),
+
+          phone_number: coalesceUndefined(phoneNumber, existing.phone_number),
+          phone_country: coalesceUndefined(
+            phoneCountry,
+            existing.phone_country
+          ),
+
+          country: coalesceUndefined(country, existing.country),
+          address_line: coalesceUndefined(address, existing.address_line),
+          state: coalesceUndefined(state, existing.state),
+          city: coalesceUndefined(city, existing.city),
+          zip_code: coalesceUndefined(zipCode, existing.zip_code),
+
+          about: coalesceUndefined(about, existing.about),
+
+          birthday:
+            birthday === undefined
+              ? existing.birthday
+              : birthday
+              ? new Date(birthday)
+              : null,
+
+          department_id:
+            departmentId === undefined
+              ? existing.department_id
+              : toIntOrNull2(departmentId),
+
+          role_id:
+            roleId === undefined ? existing.role_id : toIntOrNull2(roleId),
+
+          status: status === undefined ? existing.status : status,
+          is_public:
+            typeof isPublic === "boolean" ? isPublic : existing.is_public,
+
+          // ✅ NEW: persist profile_completed
+          profile_completed:
+            profile_completed === undefined
+              ? existing.profile_completed
+              : Boolean(profile_completed),
+        },
+        select: USER_SAFE_SELECT,
+      });
+
+      if (typeof password === "string" && password.trim().length > 0) {
+        const newHash = await bcrypt.hash(password, 10);
+
+        await tx.user_auth.updateMany({
+          where: { user_id: userId, is_deleted: false },
+          data: { password_hash: newHash },
+        });
+      }
+
+      if (typeof username === "string" && username.trim().length > 0) {
+        await tx.user_auth.updateMany({
+          where: { user_id: userId, is_deleted: false },
+          data: { username: username.trim().toLowerCase() },
+        });
+      }
+
+      return updated;
+    });
 
     await req.logActivity?.({
       action_type: "UPDATE",
       table_name: "users",
-      record_id: updatedItem.user_id,
-      changed_fields: changedFields,
+      record_id: updatedUser.id,
+      changed_fields: Object.keys(req.body),
     });
 
-    res.json(removePassword(updatedItem));
+    return res.json({
+      success: true,
+      user: removePassword(normalizeUserBigInts(updatedUser)),
+    });
   } catch (error) {
     if (error?.code === "P2002") {
       return res.status(409).json({

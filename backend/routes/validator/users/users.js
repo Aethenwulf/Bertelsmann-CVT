@@ -175,5 +175,8 @@ exports.validateUpdateUser = [
       );
     }),
 
-  body("profile_completed").optional({ nullable: true }).isBoolean(),
+  body("profile_completed")
+    .optional({ nullable: true })
+    .isBoolean()
+    .withMessage("profile_completed must be boolean"),
 ];

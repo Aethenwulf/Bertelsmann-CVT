@@ -88,11 +88,7 @@ export function AccountLayout({ children, ...other }: DashboardContentProps) {
     <DashboardContent {...other}>
       <CustomBreadcrumbs
         heading="Account"
-        links={[
-          { name: 'Dashboard', href: paths.dashboard.root },
-          { name: 'User', href: paths.dashboard.user.root },
-          { name: 'Account' },
-        ]}
+        links={[{ name: 'Dashboard', href: paths.dashboard.root }, { name: 'Account' }]}
         sx={{ mb: 3 }}
       />
 
