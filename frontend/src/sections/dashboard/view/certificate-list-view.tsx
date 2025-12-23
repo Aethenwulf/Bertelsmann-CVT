@@ -3,30 +3,37 @@
 import type { TableHeadCellProps } from 'src/components/table';
 
 import { useState, useCallback, useEffect } from 'react';
+import { varAlpha } from 'minimal-shared/utils';
 import { useBoolean, useSetState } from 'minimal-shared/hooks';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
 import TableBody from '@mui/material/TableBody';
 import IconButton from '@mui/material/IconButton';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { DashboardContent } from 'src/layouts/dashboard';
-import { _requiredCertificate, _submittedCertificate, _stateCode } from 'src/_mock';
 import {
+  _requiredCertificate,
+  _submittedCertificate,
+  _stateCode,
+  SUBMITTED_STATUS_OPTIONS,
+} from 'src/_mock';
+import type {
   IRequiredCertificateItem,
   ISubmittedCertificateItem,
   ICertificateTableFilters,
 } from 'src/types/certificate';
 import { deleteUser } from 'src/api/users';
 
+import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
@@ -48,6 +55,7 @@ import { RequiredTableRow } from '../required-table-row';
 import { SubmittedTableRow } from '../submitted-table-row';
 import { CertificateTableToolbar } from '../certificate-table-toolbar';
 import { CertificateTableFiltersResult } from '../certificate-table-filters-result';
+import type { CertificateValidationFilter } from 'src/types/certificate';
 
 // ----------------------------------------------------------------------
 
@@ -75,7 +83,6 @@ type CertificateRowBase = { id: string };
 
 export function CertificateListView() {
   const table = useTable();
-
   const confirmDialog = useBoolean();
 
   const [requiredData, setRequiredData] = useState<IRequiredCertificateItem[]>([]);
@@ -90,8 +97,18 @@ export function CertificateListView() {
     stateCode: [],
     form: 'all',
     formType: '',
+    validationStatus: 'all', // ✅ important: lowercase to match tabs values
   });
   const { state: currentFilters, setState: updateFilters } = filters;
+
+  // Submitted status filter tabs handler
+  const handleFilterSubmittedStatus = useCallback(
+    (event: React.SyntheticEvent, newValue: CertificateValidationFilter) => {
+      table.onResetPage();
+      updateFilters({ validationStatus: newValue });
+    },
+    [table, updateFilters]
+  );
 
   // 🔑 one comparator for both tables
   const comparator = getComparator(table.order, table.orderBy) as (a: any, b: any) => number;
@@ -103,7 +120,7 @@ export function CertificateListView() {
     filters: currentFilters,
   });
 
-  // SUBMITTED: filter + sort using SAME filters
+  // SUBMITTED: filter + sort using SAME filters (but different logic)
   const submittedFiltered = applySubmittedFilter({
     inputData: submittedData,
     comparator,
@@ -118,12 +135,13 @@ export function CertificateListView() {
   const canReset =
     !!currentFilters.stateName ||
     currentFilters.stateCode.length > 0 ||
-    currentFilters.form !== 'all';
+    (currentTab === 'required' && currentFilters.form !== 'all') ||
+    (currentTab === 'submitted' && currentFilters.validationStatus !== 'all');
 
   const notFound =
     currentTab === 'required'
       ? (!requiredFiltered.length && canReset) || !requiredFiltered.length
-      : !submittedFiltered.length;
+      : (!submittedFiltered.length && canReset) || !submittedFiltered.length;
 
   const handleDeleteRow = useCallback(
     async (id: string) => {
@@ -177,6 +195,8 @@ export function CertificateListView() {
     activeDataFiltered.length,
   ]);
 
+  // (Optional) If you still have "form tabs" somewhere else, keep this.
+  // Your current UI doesn't render form tabs here, but leaving handler is harmless.
   const handleFilterStatus = useCallback(
     (event: React.SyntheticEvent, newValue: string) => {
       table.onResetPage();
@@ -269,15 +289,65 @@ export function CertificateListView() {
             <Tab value="submitted" label="Submitted" />
           </Tabs>
 
-          {/* Filters now affect BOTH tabs */}
+          {/* ✅ Submitted status tabs (only on Submitted tab) */}
+          {currentTab === 'submitted' && (
+            <Tabs
+              value={currentFilters.validationStatus}
+              onChange={handleFilterSubmittedStatus}
+              sx={[
+                (theme) => ({
+                  px: 2.5,
+                  boxShadow: `inset 0 -2px 0 0 ${varAlpha(
+                    theme.vars.palette.grey['500Channel'],
+                    0.08
+                  )}`,
+                }),
+              ]}
+            >
+              {SUBMITTED_STATUS_OPTIONS.map((tabOpt) => (
+                <Tab
+                  key={tabOpt.value}
+                  value={tabOpt.value}
+                  label={tabOpt.label}
+                  iconPosition="end"
+                  icon={
+                    <Label
+                      variant={
+                        ((tabOpt.value === 'all' ||
+                          tabOpt.value === currentFilters.validationStatus) &&
+                          'filled') ||
+                        'soft'
+                      }
+                      color={
+                        (tabOpt.value === 'pending' && 'warning') ||
+                        (tabOpt.value === 'rejected' && 'error') ||
+                        (tabOpt.value === 'approved' && 'success') ||
+                        'default'
+                      }
+                    >
+                      {tabOpt.value === 'all'
+                        ? submittedData.length
+                        : submittedData.filter(
+                            (row) => row.validationStatus?.toLowerCase() === tabOpt.value
+                          ).length}
+                    </Label>
+                  }
+                />
+              ))}
+            </Tabs>
+          )}
+
+          {/* Toolbar (Code multi-select + Search) */}
           <CertificateTableToolbar
             filters={filters}
             onResetPage={table.onResetPage}
             options={{ countries: _stateCode }}
           />
 
+          {/* Filters result chips */}
           {canReset && (
             <CertificateTableFiltersResult
+              tab={currentTab}
               filters={filters}
               totalResults={
                 currentTab === 'required' ? requiredFiltered.length : submittedFiltered.length
@@ -409,12 +479,10 @@ type ApplyFilterProps = {
 function applyRequiredFilter({ inputData, comparator, filters }: ApplyFilterProps) {
   const { stateName, stateCode, form } = filters;
 
-  // use the same stable sort helper
   let data = stableSort(inputData, comparator);
 
   if (stateName) {
     const keyword = stateName.toLowerCase();
-
     data = data.filter(
       (certificate) =>
         certificate.stateName.toLowerCase().includes(keyword) ||
@@ -441,7 +509,7 @@ type ApplySubmittedFilterProps = {
 };
 
 function applySubmittedFilter({ inputData, comparator, filters }: ApplySubmittedFilterProps) {
-  const { stateName, stateCode } = filters;
+  const { stateName, stateCode, validationStatus } = filters;
 
   let data = stableSort(inputData, comparator);
 
@@ -455,9 +523,16 @@ function applySubmittedFilter({ inputData, comparator, filters }: ApplySubmitted
     );
   }
 
-  // Code filter: still by stateCode (Code select)
+  // Code filter: still by stateCode
   if (stateCode.length) {
     data = data.filter((certificate) => stateCode.includes(certificate.stateCode));
+  }
+
+  // ✅ Status filter: compare lowercase against your tab values
+  if (validationStatus !== 'all') {
+    data = data.filter(
+      (certificate) => certificate.validationStatus?.toLowerCase() === validationStatus
+    );
   }
 
   return data;

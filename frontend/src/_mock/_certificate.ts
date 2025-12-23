@@ -7,10 +7,11 @@ export const CERT_FORM_TYPE_OPTIONS = [
 ];
 
 export const SUBMITTED_STATUS_OPTIONS = [
-  { value: 'active', label: 'Active' },
+  { value: 'all', label: 'All' },
   { value: 'pending', label: 'Pending' },
   { value: 'rejected', label: 'Rejected' },
-];
+  { value: 'approved', label: 'Approved' },
+] as const;
 
 const CERTIFICATE_ROWS: Omit<IRequiredCertificateItem, 'id' | 'index'>[] = [
   {

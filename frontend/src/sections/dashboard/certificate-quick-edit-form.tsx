@@ -99,7 +99,9 @@ export function CertificateQuickEditForm({
         form: submittedCertificate.form ?? '',
         formType: '',
         dateSubmitted: submittedCertificate.dateSubmitted ?? '',
-        validationStatus: submittedCertificate.validationStatus ?? '',
+        validationStatus: submittedCertificate.validationStatus
+          ? submittedCertificate.validationStatus.toLowerCase()
+          : '',
         expirationDate: submittedCertificate.expirationDate ?? '',
         submittedBy: submittedCertificate.submittedBy ?? '',
       });
@@ -198,7 +200,7 @@ export function CertificateQuickEditForm({
                   <>
                     <Field.Text name="dateSubmitted" label="Date Submitted" />
                     <Field.Select name="validationStatus" label="Validation status">
-                      {SUBMITTED_STATUS_OPTIONS.map((opt) => (
+                      {SUBMITTED_STATUS_OPTIONS.filter((opt) => opt.value !== 'all').map((opt) => (
                         <MenuItem key={opt.value} value={opt.value}>
                           {opt.label}
                         </MenuItem>

@@ -1,8 +1,11 @@
+export type CertificateValidationFilter = 'all' | 'pending' | 'rejected' | 'approved';
+
 export type ICertificateTableFilters = {
-  stateCode: string[];
   stateName: string;
+  stateCode: string[];
   form: string;
   formType: string;
+  validationStatus: CertificateValidationFilter;
 };
 
 export type IRequiredCertificateItem = {
@@ -20,7 +23,7 @@ export type ISubmittedCertificateItem = {
   id: string;
   dateSubmitted: string;
   form: string;
-  validationStatus: 'Pending' | 'Approved' | 'Rejected';
+  validationStatus: string;
   stateCode: string;
   expirationDate: string;
   submittedBy: string;
