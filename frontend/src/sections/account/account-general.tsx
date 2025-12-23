@@ -70,6 +70,20 @@ function toAbsoluteUrl(url: string | null | undefined) {
   return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
+function toDateInputValue(v: any): string {
+  if (!v) return '';
+  // if already yyyy-mm-dd
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '';
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function AccountGeneral() {
   const { user, refresh, checkUserSession } = useAuthContext() as any;
   const router = useRouter();
@@ -117,7 +131,7 @@ export function AccountGeneral() {
       zipCode: user?.zipCode ?? '',
 
       about: user?.about ?? '',
-      birthday: user?.birthday ?? '',
+      birthday: toDateInputValue(user?.birthday),
       isPublic: user?.isPublic ?? false,
     };
 

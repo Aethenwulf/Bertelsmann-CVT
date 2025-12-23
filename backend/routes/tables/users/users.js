@@ -546,12 +546,18 @@ router.put("/:id", validateUpdateUser, validate, async (req, res) => {
       return res.status(400).json({ error: "Invalid user ID" });
     }
 
+    // authz: allow admin OR self
+    const isAdmin = Number(req.user?.role) === 1;
+    const selfId = Number(req.user?.id ?? req.user?.user_id);
+    if (!isAdmin && selfId !== userId) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
     const existing = await prisma.users.findUnique({ where: { id: userId } });
     if (!existing || existing.is_deleted) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // ✅ FIX: destructure req.body so variables exist
     const {
       firstName,
       lastName,
@@ -569,12 +575,17 @@ router.put("/:id", validateUpdateUser, validate, async (req, res) => {
       roleId,
       isPublic,
       status,
-      password,
       username,
-      profile_completed, // ✅ NEW
+
+      profile_completed,
+
+      // password fields
+      currentPassword,
+      password,
     } = req.body;
 
     const updatedUser = await prisma.$transaction(async (tx) => {
+      // 1) update users table
       const updated = await tx.users.update({
         where: { id: userId },
         data: {
@@ -615,7 +626,6 @@ router.put("/:id", validateUpdateUser, validate, async (req, res) => {
           is_public:
             typeof isPublic === "boolean" ? isPublic : existing.is_public,
 
-          // ✅ NEW: persist profile_completed
           profile_completed:
             profile_completed === undefined
               ? existing.profile_completed
@@ -624,15 +634,59 @@ router.put("/:id", validateUpdateUser, validate, async (req, res) => {
         select: USER_SAFE_SELECT,
       });
 
+      // 2) password update (user_auth)
       if (typeof password === "string" && password.trim().length > 0) {
-        const newHash = await bcrypt.hash(password, 10);
+        const authRow = await tx.user_auth.findFirst({
+          where: { user_id: userId, is_deleted: false },
+          select: { password_hash: true },
+        });
 
+        if (!authRow) {
+          const e = new Error("Auth row not found");
+          e.statusCode = 404;
+          throw e;
+        }
+
+        // Self-service: must provide currentPassword (admin can skip)
+        if (!isAdmin) {
+          if (!currentPassword || String(currentPassword).trim().length === 0) {
+            const e = new Error("Current password is required");
+            e.statusCode = 400;
+            throw e;
+          }
+
+          const ok = await bcrypt.compare(
+            String(currentPassword),
+            authRow.password_hash
+          );
+          if (!ok) {
+            const e = new Error("Current password is incorrect");
+            e.statusCode = 401;
+            throw e;
+          }
+        } else {
+          // admin: if currentPassword is provided, verify it (optional)
+          if (currentPassword && String(currentPassword).trim().length > 0) {
+            const ok = await bcrypt.compare(
+              String(currentPassword),
+              authRow.password_hash
+            );
+            if (!ok) {
+              const e = new Error("Current password is incorrect");
+              e.statusCode = 401;
+              throw e;
+            }
+          }
+        }
+
+        const newHash = await bcrypt.hash(String(password), 10);
         await tx.user_auth.updateMany({
           where: { user_id: userId, is_deleted: false },
           data: { password_hash: newHash },
         });
       }
 
+      // 3) username update (user_auth)
       if (typeof username === "string" && username.trim().length > 0) {
         await tx.user_auth.updateMany({
           where: { user_id: userId, is_deleted: false },
@@ -652,7 +706,9 @@ router.put("/:id", validateUpdateUser, validate, async (req, res) => {
 
     return res.json({
       success: true,
-      user: removePassword(normalizeUserBigInts(updatedUser)),
+      user: removePassword(
+        withAbsoluteAvatarUrl(req, normalizeUserBigInts(updatedUser))
+      ),
     });
   } catch (error) {
     if (error?.code === "P2002") {
@@ -664,7 +720,11 @@ router.put("/:id", validateUpdateUser, validate, async (req, res) => {
     if (error?.code === "P2025") {
       return res.status(404).json({ error: "User not found" });
     }
-    return res.status(500).json({ error: error.message });
+
+    const statusCode = error?.statusCode || 500;
+    return res
+      .status(statusCode)
+      .json({ error: error?.message || "Server error" });
   }
 });
 

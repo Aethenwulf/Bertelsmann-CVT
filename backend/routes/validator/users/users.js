@@ -158,7 +158,17 @@ exports.validateUpdateUser = [
     .isIn(STATUS_ALLOWED)
     .withMessage(`status must be one of ${STATUS_ALLOWED.join(", ")}`),
 
-  body("password").optional({ nullable: true }).isString().isLength({ min: 8 }),
+  body("password")
+    .optional({ nullable: true })
+    .isString()
+    .isLength({ min: 6 })
+    .withMessage("password must be at least 6 characters"),
+
+  body("currentPassword")
+    .optional({ nullable: true })
+    .isString()
+    .isLength({ min: 6 })
+    .withMessage("currentPassword must be at least 6 characters"),
 
   body("username")
     .optional({ nullable: true })

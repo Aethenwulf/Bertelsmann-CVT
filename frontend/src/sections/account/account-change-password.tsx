@@ -13,6 +13,9 @@ import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { Form, Field } from 'src/components/hook-form';
 
+import axios, { endpoints } from 'src/lib/axios';
+import { useAuthContext } from 'src/auth/hooks';
+
 // ----------------------------------------------------------------------
 
 export type ChangePassWordSchemaType = zod.infer<typeof ChangePassWordSchema>;
@@ -23,7 +26,7 @@ export const ChangePassWordSchema = zod
       .string()
       .min(1, { message: 'Password is required!' })
       .min(6, { message: 'Password must be at least 6 characters!' }),
-    newPassword: zod.string().min(1, { message: 'New password is required!' }),
+    newPassword: zod.string().min(6, { message: 'New password must be at least 6 characters!' }),
     confirmNewPassword: zod.string().min(1, { message: 'Confirm password is required!' }),
   })
   .refine((data) => data.oldPassword !== data.newPassword, {
@@ -39,6 +42,8 @@ export const ChangePassWordSchema = zod
 
 export function AccountChangePassword() {
   const showPassword = useBoolean();
+
+  const { user, refresh, checkUserSession } = useAuthContext() as any;
 
   const defaultValues: ChangePassWordSchemaType = {
     oldPassword: '',
@@ -60,12 +65,34 @@ export function AccountChangePassword() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      const userId = Number(user?.id ?? user?.user_id);
+      if (!userId) throw new Error('Missing user id');
+
+      // backend expects: currentPassword + password
+      const payload = {
+        currentPassword: data.oldPassword,
+        password: data.newPassword,
+      };
+
+      await axios.put(`${endpoints.users.root}/${userId}`, payload);
+
+      await checkUserSession?.();
+      await refresh?.();
+
       reset();
-      toast.success('Update success!');
-      console.info('DATA', data);
-    } catch (error) {
+      toast.success('Password updated successfully!');
+    } catch (error: any) {
       console.error(error);
+
+      const status = error?.response?.status;
+      const msg = error?.response?.data?.error || error?.response?.data?.message;
+
+      if (status === 401) {
+        toast.error(msg || 'Current password is incorrect');
+        return;
+      }
+
+      toast.error(msg || 'Failed to update password');
     }
   });
 
