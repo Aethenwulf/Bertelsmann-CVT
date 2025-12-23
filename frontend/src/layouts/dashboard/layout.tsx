@@ -29,7 +29,8 @@ import { HeaderSection } from '../core/header-section';
 import { LayoutSection } from '../core/layout-section';
 import { AccountDrawer } from '../components/account-drawer';
 import { SettingsButton } from '../components/settings-button';
-import { navData as dashboardNavData } from '../nav-config-dashboard';
+import { getNavData } from '../nav-config-dashboard';
+import { useAuthContext } from 'src/auth/hooks';
 import { dashboardLayoutVars, dashboardNavColorVars } from './css-vars';
 
 import type { MainSectionProps } from '../core/main-section';
@@ -59,14 +60,15 @@ export function DashboardLayout({
   layoutQuery = 'lg',
 }: DashboardLayoutProps) {
   const theme = useTheme();
-
   const settings = useSettingsContext();
 
-  const navVars = dashboardNavColorVars(theme, settings.state.navColor, settings.state.navLayout);
+  const { user } = useAuthContext() as any;
+  const roleId = Number(user?.role_id ?? user?.role);
 
+  const navVars = dashboardNavColorVars(theme, settings.state.navColor, settings.state.navLayout);
   const { value: open, onFalse: onClose, onTrue: onOpen } = useBoolean();
 
-  const navData = slotProps?.nav?.data ?? dashboardNavData;
+  const navData = slotProps?.nav?.data ?? getNavData(roleId);
 
   const isNavMini = settings.state.navLayout === 'mini';
   const isNavHorizontal = settings.state.navLayout === 'horizontal';

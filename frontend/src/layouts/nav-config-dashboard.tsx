@@ -1,9 +1,7 @@
 import type { NavSectionProps } from 'src/components/nav-section';
 
 import { paths } from 'src/routes/paths';
-
 import { CONFIG } from 'src/global-config';
-
 import { SvgColor } from 'src/components/svg-color';
 
 // ----------------------------------------------------------------------
@@ -44,34 +42,36 @@ const ICONS = {
 
 // ----------------------------------------------------------------------
 
-export const navData: NavSectionProps['data'] = [
-  /**
-   * Overview
-   */
-  {
-    subheader: 'Overview',
-    items: [
-      { title: 'Dashboard', path: paths.dashboard.root, icon: ICONS.dashboard },
-      // { title: 'Two', path: paths.dashboard.two, icon: ICONS.ecommerce },
-      // { title: 'Three', path: paths.dashboard.three, icon: ICONS.analytics },
-    ],
-  },
-  /**
-   * Management
-   */
-  {
-    subheader: 'Management',
-    items: [
-      {
-        title: 'User',
-        path: paths.dashboard.user.root,
-        icon: ICONS.user,
-        children: [
-          { title: 'List', path: paths.dashboard.user.list },
-          { title: 'Create', path: paths.dashboard.user.new },
-        ],
-      },
-      // { title: 'Blank', path: paths.dashboard.blank, icon: ICONS.blank },
-    ],
-  },
-];
+// NEW: role-based generator
+export const getNavData = (roleId?: number): NavSectionProps['data'] => {
+  const isAdmin = Number(roleId) === 1;
+
+  return [
+    {
+      subheader: 'Overview',
+      items: [{ title: 'Dashboard', path: paths.dashboard.root, icon: ICONS.dashboard }],
+    },
+
+    ...(isAdmin
+      ? [
+          {
+            subheader: 'Management',
+            items: [
+              {
+                title: 'User',
+                path: paths.dashboard.user.root,
+                icon: ICONS.user,
+                children: [
+                  { title: 'List', path: paths.dashboard.user.list },
+                  { title: 'Create', path: paths.dashboard.user.new },
+                ],
+              },
+            ],
+          },
+        ]
+      : []),
+  ];
+};
+
+// Optional: keep old export so anything else importing navData won’t break
+export const navData: NavSectionProps['data'] = getNavData(1);
